@@ -623,14 +623,16 @@ export function createMessageQueueRuntime({
         },
       });
     } else {
+      const body = {
+        text: item.text,
+        ...(promptFiles.length > 0 ? { files: promptFiles } : {}),
+        ...(item.agentMention ? { agents: [{ name: item.agentMention }] } : {}),
+      };
+      if (item.scheduledTask) body.metadata = { openchamber: { kind: 'scheduled' } };
       await openCodeFetch(`/api/session/${encodeURIComponent(sessionId)}/prompt`, {
         directory,
         method: 'POST',
-        body: {
-          text: item.text,
-          ...(promptFiles.length > 0 ? { files: promptFiles } : {}),
-          ...(item.agentMention ? { agents: [{ name: item.agentMention }] } : {}),
-        },
+        body,
       });
     }
   };

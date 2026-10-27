@@ -152,7 +152,7 @@ describe('scheduled task items', () => {
     await settle();
     expect(openCode.state.switched).toEqual([]);
     expect(openCode.state.sent).toHaveLength(1);
-    expect(openCode.state.sent[0].body).toEqual({ text: 'follow up' });
+    expect(openCode.state.sent[0].body).toEqual({ text: 'follow up', metadata: { openchamber: { kind: 'scheduled' } } });
     expect(runtime.sessionSnapshot(SESSION).items).toEqual([]);
     expect(results).toEqual([{ task: { projectId: 'project-1', taskId: 'task-1' }, status: 'sent' }]);
     runtime.stop();

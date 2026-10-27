@@ -70,6 +70,19 @@ also exists in VS Code.
 
 ## When a session opens
 
+Scheduled prompts in an existing session carry message metadata
+`openchamber.kind = scheduled`. They advance the turn generation but leave
+the work state untouched. A later manual message can open the same session.
+
+### Why scheduled provenance belongs to the message
+
+An existing session may contain both automated checks and manual work. Marking
+the whole session as scheduled would also exclude the user's later messages.
+The queue marks ordinary scheduled prompts before admission, so the live event
+can skip opening work without racing the HTTP response. OpenCode's command
+endpoint does not accept metadata; scheduled slash commands retain its normal
+work-opening behavior.
+
 A user message was sent (`message.updated`, role user, from the hub's
 translation of `session.inbox.enqueued`), with the feature on: a session not
 already in work and eligible opens. A message with only files or attached

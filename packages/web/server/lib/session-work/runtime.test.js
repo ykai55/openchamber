@@ -3,6 +3,7 @@ import { mergeMetadataPatch } from '../openchamber-sessions/session-metadata-sto
 import { decideAssist } from './questions.js';
 import { createSessionWorkRuntime } from './runtime.js';
 import { createSessionLineage } from '../session-lineage.js';
+import { translateWireEvent } from '../event-stream/translate-v2.js';
 
 const ENDPOINT = { url: 'https://jev.test', model: 'jev', headers: {} };
 
@@ -81,6 +82,29 @@ describe('session work decisions', () => {
 });
 
 describe('session work runtime: a message was sent', () => {
+  it.each([undefined, 'done', 'open'])('keeps work state %s on scheduled prompts, but opens on a later manual message', async (state) => {
+    const fetchMock = stubOpenCode();
+    const metadata = state ? { openchamber: { work: { state, doneAt: 40 } } } : {};
+    const { runtime, records, updateMetadata } = makeRuntime({ metadata });
+    const [scheduled] = translateWireEvent({
+      id: 'evt_scheduled', created: 50, type: 'session.inbox.enqueued',
+      data: {
+        sessionID: 'ses_1', inboxID: 'msg_scheduled',
+        item: { type: 'user', payload: { text: 'Check progress', metadata: { openchamber: { kind: 'scheduled' } } } },
+      },
+    });
+    runtime.processPayload(scheduled);
+    runtime.processPayload(scheduled);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(updateMetadata).not.toHaveBeenCalled();
+    expect(records.get('ses_1')).toEqual(metadata);
+
+    runtime.processPayload(sent('msg_manual'));
+    await settle(() => records.get('ses_1').openchamber?.work?.state === 'open');
+    expect(records.get('ses_1').openchamber.work.state).toBe('open');
+  });
+
   it('opens the session on a sent message without asking Jev', async () => {
     stubOpenCode();
     const { runtime, jev, records } = makeRuntime();
