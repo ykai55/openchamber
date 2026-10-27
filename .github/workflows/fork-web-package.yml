@@ -1,0 +1,65 @@
+name: Fork web package
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.4.3'
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build web assets
+        run: |
+          bun run --cwd packages/sdk build
+          bun run build:web
+
+      - name: Pack npm archive
+        run: |
+          mkdir -p artifacts
+          bun pm pack --cwd packages/web --destination "$GITHUB_WORKSPACE/artifacts"
+
+      - name: Verify clean npm installation
+        run: |
+          npm install --prefix "$RUNNER_TEMP/package-smoke" "$GITHUB_WORKSPACE"/artifacts/*.tgz
+          "$RUNNER_TEMP/package-smoke/node_modules/.bin/openchamber" --version
+          test -f "$RUNNER_TEMP/package-smoke/node_modules/@openchamber/web/dist/index.html"
+
+      - name: Publish fork prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          tag="fork-web-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          archive=$(basename artifacts/*.tgz)
+          sha256sum artifacts/*.tgz > artifacts/SHA256SUMS
+          cat > "$RUNNER_TEMP/release-notes.md" <<EOF
+          Web CLI package built from commit ${SOURCE_SHA}.
+
+          Requires Node.js 24.14+ and OpenCode CLI. Install with:
+
+          \`\`\`sh
+          npm install -g https://github.com/${GH_REPO}/releases/download/${tag}/${archive}
+          \`\`\`
+
+          Built web assets and clean npm installation were checked on Linux x64.
+          This is a fork build, not an upstream release. Updating from npm latest replaces it with upstream.
+          EOF
+          gh release create "$tag" artifacts/*.tgz artifacts/SHA256SUMS \
+            --target "$SOURCE_SHA" --prerelease \
+            --title "Fork web package ${GITHUB_RUN_NUMBER}" \
+            --notes-file "$RUNNER_TEMP/release-notes.md"
