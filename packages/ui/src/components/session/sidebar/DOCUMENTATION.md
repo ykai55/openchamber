@@ -897,7 +897,7 @@ matching and ordering. Search does not fetch sessions or broaden list membership
   Tree worktree group reveals 7 sessions, 7 more per Show more, and 10 in
   VS Code. Reveal
   controls change the logical list, not the viewport's bounded mounted window.
-- Archiving or deleting a session takes its whole active subtree with it on every surface, because the server does not cascade `time.archived`. In work and managed Chats build their rows with `buildActiveSessionNode` from `list/sessionCollection.ts`, so the descendants a row collects match the project tree at any depth; the phone's swipe actions resolve the same lineage with `getDescendantIds` over every active session when they run (`apps/mobileSidebar/mobileSessionActions.ts`). `sessions/sessionSubtreeActions.ts` owns the single-versus-batch store calls and the outcome toasts for all of them, and `collectSessionSubtreeIds` extends the surface's own descendant list at action time with the global session lineage (`stores/sessionLineage.ts`), so an active subagent below an archived intermediate is still archived (archive skips the archived intermediate; delete includes it). A projection that flattens a tree to one level silently leaves grandchildren active. The project menu's "Archive all" archives the subagents of each selected session in the same batch; its dialog and success toast count top-level sessions, the rows the user sees.
+- Archiving or deleting a session takes its whole active subtree with it on every surface, because the server does not cascade `time.archived`. In work and managed Chats build their rows with `buildActiveSessionNode` from `list/sessionCollection.ts`, so the descendants a row collects match the project tree at any depth; the row hands over OpenCode's own subsessions only (`collectParentIdDescendantIds` in `sessions/sessionSubtreeActions.ts`), since the tree also folds a session under the one it grew out of on display lineage — a fork, an auto-review, a promoted `/btw` (`lib/sessionWorkLineage`) — and restore follows `parentID`, so those rows stay where the user can reach them; the phone's swipe actions resolve the same lineage with `getDescendantIds` over every active session when they run (`apps/mobileSidebar/mobileSessionActions.ts`). `sessions/sessionSubtreeActions.ts` owns the single-versus-batch store calls and the outcome toasts for all of them, and `collectSessionSubtreeIds` extends the surface's own descendant list at action time with the global session lineage (`stores/sessionLineage.ts`), so an active subagent below an archived intermediate is still archived (archive skips the archived intermediate; delete includes it). A projection that flattens a tree to one level silently leaves grandchildren active. The project menu's "Archive all" archives the subagents of each selected session in the same batch; its dialog and success toast count top-level sessions, the rows the user sees.
 - Subsessions belong to the agent run that spawned them, not to the user. They appear only nested under an active parent: the archive (sidebar bucket, auto folders and the Archive page) lists top-level sessions only, an archived subsession or one under an archived parent is hidden rather than promoted to a row of its own, and there is no restore for a subsession; it comes back when its parent is restored. A subsession whose parent is not loaded yet stays visible as a root.
 - Folder membership may contain both a parent session and its descendants. Rendering treats only the highest assigned ancestors as folder roots because their normal session trees already include assigned descendants; persisted membership remains unchanged for cleanup and move semantics.
 - Sidebar selection holds the clicked row's viewport position across navigation-driven sidebar updates. Wheel or touch input cancels the hold immediately, so programmatic compensation never fights intentional scrolling.
@@ -1016,3 +1016,18 @@ The session tree frames a group instead: the line starts under the open row
 and stops at its last child with a corner, so where a worktree's or a
 session's children end reads at a glance, and a long tree is not striped by
 lines that run through rows they do not belong to.
+
+### Why archive takes OpenCode's subsessions and not the row's whole subtree
+
+The sidebar folds a session under the one it grew out of when OpenCode records
+no `parentID` for it: a fork under its source, an auto-review under the session
+it reviews, a promoted `/btw` (`lib/sessionWorkLineage`). The row's subtree was
+the obvious list to hand to archive, and it read as one work's worth of rows.
+Restore and the Archive page follow `parentID` only, so the pair disagreed:
+archiving a session archived its fork, and the undo the toast offered — or a
+restore from the Archive page — brought back the session alone, leaving the
+fork archived with no row pointing at it. The row now hands over
+`collectParentIdDescendantIds`, its `parentID` children, and an offshoot stays
+a work of its own once its origin is archived, which is where the user finds
+it again. Moving keeps the full idle subtree it always transferred: there the
+whole point is carrying the conversation the user works in.

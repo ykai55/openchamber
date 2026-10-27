@@ -5,6 +5,7 @@ import type { SessionNode } from '../types';
 import type { SessionSidebarRenderContext } from '../sessionSidebarRowModel';
 import type { SessionNodeRenderExtras } from './sessionNodeItemUtils';
 import { useSessionActions, type DeleteSessionConfirmState } from './useSessionActions';
+import { collectParentIdDescendantIds } from './sessionSubtreeActions';
 import { useSessionFoldersStore } from '@/stores/useSessionFoldersStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { SessionDeleteConfirmDialog } from '../shell/ConfirmDialogs';
@@ -114,16 +115,13 @@ function SessionTreeItemComponent({
   // Keyed by the descendant ids themselves, not by node identity: the sidebar
   // rebuilds a project's node tree whenever one of its session records
   // changes, and a fresh array here would give every row in that project a
-  // new delete handler and force it to re-render.
-  const descendantIdsKey = React.useMemo(() => {
-    const ids: string[] = [];
-    const visit = (current: SessionNode) => current.children.forEach((child) => {
-      ids.push(child.session.id);
-      visit(child);
-    });
-    visit(node);
-    return ids.join('\n');
-  }, [node]);
+  // new delete handler and force it to re-render. Only OpenCode's own
+  // subsessions are archive and delete material: what the sidebar folds in on
+  // display lineage stays out (`collectParentIdDescendantIds`).
+  const descendantIdsKey = React.useMemo(
+    () => collectParentIdDescendantIds(node).join('\n'),
+    [node],
+  );
   const descendantIds = React.useMemo(
     () => (descendantIdsKey ? descendantIdsKey.split('\n') : []),
     [descendantIdsKey],

@@ -29,8 +29,9 @@ type SessionSubtreeOutcome = {
  * Every descendant an archive or delete should reach, resolved when the user
  * acts rather than while rows render.
  *
- * `knownDescendantIds` is what the surface already sees: the rendered tree on
- * desktop, the active list on mobile. Both stop at an archived child, so an
+ * `knownDescendantIds` is what the surface already sees: a row's `parentID`
+ * children on desktop (`collectParentIdDescendantIds`), the active list on
+ * mobile. Both stop at an archived child, so an
  * active subagent under an archived intermediate stayed behind (an edge #2580
  * pointed out). The global lineage reaches through archived intermediates:
  * archive takes the active sessions below, since it must not restamp archived
@@ -46,6 +47,35 @@ export const collectSessionSubtreeIds = (
   for (const descendant of descendants) ids.add(descendant.id);
   ids.delete(rootId);
   return [...ids];
+};
+
+/**
+ * The descendants OpenCode nests under `root`, parents before their children:
+ * a child counts only when its own record names its parent.
+ *
+ * The sidebar also folds a session under the one it grew out of when OpenCode
+ * records no `parentID` for it: an auto-review under the session it reviews, a
+ * fork under its source, a promoted `/btw` (`lib/sessionWorkLineage`). That
+ * lineage is display only, and archive, delete and restore follow `parentID`
+ * (`sidebar/DOCUMENTATION.md`), so those actions must not take those rows
+ * along. Move keeps the rendered tree on purpose:
+ * `collectSessionMoveDescendants` carries the full idle subtree, since the row
+ * being carried there is the conversation the user works in. Taking folded
+ * rows made archiving a session archive its fork too, and restoring the
+ * session — which follows `parentID` — then left the fork archived, out of
+ * reach of the undo the user had just been offered.
+ */
+export const collectParentIdDescendantIds = (root: SessionNode): string[] => {
+  const ids: string[] = [];
+  const visit = (node: SessionNode): void => {
+    for (const child of node.children) {
+      if (child.session.parentID !== node.session.id) continue;
+      ids.push(child.session.id);
+      visit(child);
+    }
+  };
+  visit(root);
+  return ids;
 };
 
 /**

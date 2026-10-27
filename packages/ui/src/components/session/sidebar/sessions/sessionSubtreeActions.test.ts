@@ -6,12 +6,14 @@ import { getRuntimeKey } from '@/lib/runtime-switch';
 import { useSessionUIStore } from '@/sync/session-ui-store';
 import {
   buildActiveSessionTreeFromCache,
+  collectParentIdDescendantIds,
   collectSessionMoveDescendants,
   collectSessionSubtreeIds,
   runSessionSubtreeAction,
   undoArchive,
   type SessionSubtreeStore,
 } from './sessionSubtreeActions';
+import type { SessionNode } from '../types';
 
 const session = (id: string): Session => ({
   id,
@@ -167,6 +169,34 @@ describe('collectSessionSubtreeIds', () => {
     useGlobalSessionsStore.getState().upsertSessions([linked('root', null), linked('cached-child', 'root')]);
 
     expect(collectSessionSubtreeIds('root', ['live-child', 'cached-child'], false)).toEqual(['live-child', 'cached-child']);
+  });
+});
+
+describe('collectParentIdDescendantIds', () => {
+  beforeEach(resetGlobalSessions);
+
+  const node = (session: Session, children: SessionNode[] = []): SessionNode => ({ session, children, worktree: null });
+
+  // A fork, an auto-review and a promoted /btw carry no parentID: the sidebar
+  // folds them under their source on display lineage alone.
+  const treeOf = () => {
+    const root = node(linked('root', null));
+    const subagent = node(linked('subagent', 'root'), [node(linked('grandchild', 'subagent'))]);
+    const fork = node(linked('fork', null), [node(linked('fork-subagent', 'fork'))]);
+    const review = node(linked('review', null));
+    return node(root.session, [subagent, fork, review]);
+  };
+
+  test('takes the sessions OpenCode nests, not the ones the sidebar folds in', () => {
+    expect(collectParentIdDescendantIds(treeOf())).toEqual(['subagent', 'grandchild']);
+  });
+
+  test('leaves a fork and a review out of the archive a session row runs', () => {
+    useGlobalSessionsStore.getState().upsertSessions([linked('root', null), linked('subagent', 'root'), linked('grandchild', 'subagent')]);
+    const tree = treeOf();
+
+    expect(collectSessionSubtreeIds(tree.session.id, collectParentIdDescendantIds(tree), false))
+      .toEqual(['subagent', 'grandchild']);
   });
 });
 
