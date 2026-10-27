@@ -56,6 +56,7 @@ const userMessageSchema = z.object({
     info: z.object({
       id: z.string().min(1),
       role: z.literal('user'),
+      metadata: z.json().optional(),
       time: z.object({ created: z.number() }).partial().optional(),
     }),
   }),
@@ -79,6 +80,7 @@ const busySchema = z.object({
  * `/btw` side question forked off one, a run of a scheduled task.
  */
 const notWorkSessionSchema = z.object({ openchamber: z.object({ kind: z.enum(['review', 'btw', 'scheduled']) }) });
+const scheduledMessageSchema = z.object({ openchamber: z.object({ kind: z.literal('scheduled') }) });
 
 export function createSessionWorkRuntime({
   buildOpenCodeUrl,
@@ -162,11 +164,12 @@ export function createSessionWorkRuntime({
 
   // Any sent message counts: one with only files or attached context has empty
   // text. A shell command from the composer counts as one too.
-  const onUserMessage = async ({ sessionId, directory, messageId, createdAt }) => {
+  const onUserMessage = async ({ sessionId, directory, messageId, createdAt, metadata }) => {
     if (!getSettings().enabled) return;
     if (seenMessages.has(messageId)) return;
     seenMessages.add(messageId);
     while (seenMessages.size > SEEN_MESSAGES_LIMIT) seenMessages.delete(seenMessages.values().next().value);
+    if (scheduledMessageSchema.safeParse(metadata).success) return;
 
     // A session already in work costs no read of OpenCode.
     if (readWork(await readMetadata(sessionId, directory))?.state === 'open') return;
@@ -214,6 +217,7 @@ export function createSessionWorkRuntime({
       sessionId: sessionID,
       directory,
       messageId: info.id,
+      metadata: info.metadata,
       createdAt: info.time?.created ?? now(),
     }).catch((error) => console.warn('[session-work] could not check a sent message:', errorMessage(error)));
   };

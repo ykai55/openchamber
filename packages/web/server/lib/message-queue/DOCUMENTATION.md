@@ -90,6 +90,12 @@ and task across all session queues. A scheduled item can omit its model to
 keep the target session selection. Normal composer items still require their
 captured model. The UI retains both kinds in the same projection.
 
+Ordinary scheduled prompts carry message metadata `openchamber.kind = scheduled`
+to OpenCode. The session-work consumer reads it from the translated inbox event
+and preserves the target's work state. Manual queued prompts have no such marker.
+The command endpoint does not accept metadata, so scheduled slash commands keep
+the ordinary work-opening behavior.
+
 Scheduled send guards and terminal result callbacks apply only to scheduled
 items. A definitive before-send target or task refusal with 404 or 409 removes
 that item and lets the next item proceed. This includes removed or retargeted
