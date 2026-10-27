@@ -6,6 +6,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: fork-web-package
+  cancel-in-progress: false
+
 jobs:
   package:
     runs-on: ubuntu-latest
@@ -31,6 +35,7 @@ jobs:
         run: |
           mkdir -p artifacts
           bun pm pack --cwd packages/web --destination "$GITHUB_WORKSPACE/artifacts"
+          mv artifacts/*.tgz artifacts/openchamber-web.tgz
 
       - name: Verify clean npm installation
         run: |
@@ -38,14 +43,14 @@ jobs:
           "$RUNNER_TEMP/package-smoke/node_modules/.bin/openchamber" --version
           test -f "$RUNNER_TEMP/package-smoke/node_modules/@openchamber/web/dist/index.html"
 
-      - name: Publish fork prerelease
+      - name: Publish latest fork package
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           SOURCE_SHA: ${{ github.sha }}
         run: |
-          tag="fork-web-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          archive=$(basename artifacts/*.tgz)
+          tag="latest"
+          archive="openchamber-web.tgz"
           sha256sum artifacts/*.tgz > artifacts/SHA256SUMS
           cat > "$RUNNER_TEMP/release-notes.md" <<EOF
           Web CLI package built from commit ${SOURCE_SHA}.
@@ -59,7 +64,15 @@ jobs:
           Built web assets and clean npm installation were checked on Linux x64.
           This is a fork build, not an upstream release. Updating from npm latest replaces it with upstream.
           EOF
-          gh release create "$tag" artifacts/*.tgz artifacts/SHA256SUMS \
-            --target "$SOURCE_SHA" --prerelease \
-            --title "Fork web package ${GITHUB_RUN_NUMBER}" \
-            --notes-file "$RUNNER_TEMP/release-notes.md"
+          exists=$(gh release list --limit 100 --json tagName --jq 'any(.[]; .tagName == "latest")')
+          git tag --force "$tag" "$SOURCE_SHA"
+          git push --force origin "refs/tags/$tag"
+          if [ "$exists" = true ]; then
+            gh release upload "$tag" artifacts/*.tgz artifacts/SHA256SUMS --clobber
+            gh release edit "$tag" --title "Latest fork build" --latest \
+              --notes-file "$RUNNER_TEMP/release-notes.md"
+          else
+            gh release create "$tag" artifacts/*.tgz artifacts/SHA256SUMS \
+              --verify-tag --latest --title "Latest fork build" \
+              --notes-file "$RUNNER_TEMP/release-notes.md"
+          fi
