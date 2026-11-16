@@ -90,9 +90,10 @@ jobs:
         if: steps.prepare.outputs.build == 'true'
         run: |
           node control/scripts/fork-web/package.mjs
-          node control/scripts/fork-web/update.mjs install --artifacts "$ARTIFACT_DIR" --root "$RUNNER_TEMP/fork-smoke" --json
-          node control/scripts/fork-web/update.mjs --root "$RUNNER_TEMP/fork-smoke" cli --version
-          node --input-type=module -e "const m=await import(process.env.RUNNER_TEMP+'/fork-smoke/current/app/server/lib/package-manager.js'); if(!m.isUnmanagedInstall())process.exit(1)"
+          npm install --global --prefix "$RUNNER_TEMP/fork-smoke" --no-audit --no-fund "$ARTIFACT_DIR/openchamber-web.tgz"
+          "$RUNNER_TEMP/fork-smoke/bin/openchamber" --version
+          node --input-type=module -e "const m=await import(process.env.RUNNER_TEMP+'/fork-smoke/lib/node_modules/@openchamber/web/server/lib/package-manager.js'); if(!m.isUnmanagedInstall())process.exit(1)"
+          node -e "const p=require(process.env.RUNNER_TEMP+'/fork-smoke/lib/node_modules/@openchamber/web/package.json'); const s=require(process.env.RUNNER_TEMP+'/fork-smoke/lib/node_modules/@openchamber/web/node_modules/@openchamber/sdk/package.json'); if(p.version!==s.version||!p.openchamberFork)process.exit(1)"
 
       - name: Publish the tested branch and release
         if: steps.prepare.outputs.build == 'true'

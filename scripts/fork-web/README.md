@@ -1,110 +1,78 @@
 # Personal Web releases
 
-This workflow lives on the fork's default `main` branch. It builds upstream
-`main` with the open PRs listed in `config.json`, publishes tested packages to
-GitHub Releases, and advances the generated `personal` branch. Changes made
-directly on fork `main` are not implicitly included in the program.
+The fork's `main` branch owns the publishing workflow and `config.json`. The
+generated `personal` branch contains upstream `main` plus configured open PRs.
+Other changes on fork `main` are not implicitly included in the program.
 
 ## Synchronization
 
-Set the repository Actions secret `FORK_PUSH_TOKEN` to a fine-grained GitHub
-token restricted to this fork, with Contents and Workflows read/write permissions.
-The built-in Actions token cannot advance a branch when upstream workflow files
-changed. Only the publishing step receives this token, and passes it to the Git
-push alone. Release API calls use the built-in Actions token. Dependency
-installation and package build steps receive neither publishing credential.
-Renew the personal token before its chosen expiration date.
+The workflow runs every six hours at minute 17 UTC, on publishing-tool/config
+changes to `main`, and through Run workflow. Unchanged inputs skip the build.
+Add upstream PR numbers to `patches`; conflicts or closed, unmerged PRs stop the
+run. Merged PRs are skipped after confirming their merge commits in upstream.
+#6902 is already merged, so it adds no duplicate patch.
 
-- Runs every six hours at minute 17 UTC, when publishing tools/config change on
-  `main`, and through the workflow's Run workflow action.
-- An unchanged upstream commit, patch list and controller revision skip the build.
-- Add an upstream PR number to `patches` to include an unmerged change. Its exact
-  head is merged into a fresh upstream checkout. A conflict stops the run.
-- Merged PRs are skipped only after their merge commit is confirmed in the
-  selected upstream revision. Closed, unmerged PRs stop the run for a decision.
-- `personal` is generated. Develop on separate branches; direct edits to
-  `personal` are replaced on a later successful build. A force-with-lease prevents
-  overwriting a concurrent edit made during the build.
-- The existing fork `main` source changes and old `latest` release are preserved.
+`personal` is generated. Develop on separate branches based on upstream `main`.
+A successful build replaces `personal` using force-with-lease, preserving edits
+made concurrently with the build. Fork `main` and the old `latest` release remain
+untouched by that generated-branch update.
 
-`config.json` initially lists #6902. It is already upstream, so the first build
-has no additional source patch. The other historical fork `main` fixes are not
-included unless they are already upstream or explicitly added as PRs.
-
-## Release contract
-
-Versions have the form `2.7.3-fork.20261116.22.1`: upstream package version,
-UTC date, workflow run number, and attempt. Each version has its own immutable
-`fork-web-<version>` release. The `fork-web` prerelease holds a small `latest.json`
-pointer, updated only after installation checks pass and the version is published.
-
-Each version publishes the Web and SDK tarballs, `manifest.json` with SHA-256
-checksums, and a standalone `update.mjs`. No npm publishing permission is needed.
-The packages are built from the same source and stamped with the same version.
-The installer installs the SDK from the local archive, so an unpublished fork
-SDK version never has to exist on npm. Runtime dependencies and native modules
-are installed for the target machine, not copied from the Linux build runner.
-
-The package overlay makes the Web UI report a manually managed installation.
-Use this updater for fork releases. The updater's `cli update` command also
-routes here, instead of installing the official npm package.
+Set the repository Actions secret `FORK_PUSH_TOKEN` to a fine-grained token for
+this fork with Contents and Workflows read/write permissions. Only the publishing
+step receives it, for the Git push. Release API calls use the built-in Actions
+token. Build and install steps receive neither publishing credential.
 
 ## Install and update
 
-Requires Node.js 24.14+, npm, tar, and an installed OpenCode CLI compatible with
-the packaged Web version. Download `update.mjs` from the selected immutable
-release. Run it with Node:
+Each immutable `fork-web-<version>` release contains **one installable Web tgz
+with its matching SDK bundled**. It requires no unpublished SDK version on npm.
+Native/runtime dependencies are installed by npm for the target machine.
+
+Requires Node.js 24.14+, npm, and a compatible installed OpenCode CLI. Copy the
+Web archive URL from the selected Release:
 
 ```sh
-node update.mjs install
-node ~/.local/share/openchamber-fork/update.mjs check
-node ~/.local/share/openchamber-fork/update.mjs update
-node ~/.local/share/openchamber-fork/update.mjs rollback
+npm install -g https://github.com/ykai55/openchamber/releases/download/<tag>/openchamber-web.tgz
+openchamber --version
 ```
 
-`--root <directory>` selects a different installation root; pass it on later
-commands too. `--json` produces machine-readable output without prompts.
-Installation verifies checksums and the installed package version before
-switching `current`. `previous` retains the former program. Existing OpenChamber
-settings, sessions and credentials remain in the usual data directories.
-An update refuses an older release, including a stale cached pointer; use the
-explicit rollback command to return to the preceding installed version.
-
-Installation alone does not stop or replace a running official server. To try
-the installed version in the foreground on a free port:
+Confirm that the CLI reports the fork version. If multiple Node/package-manager
+installations exist, use the npm prefix whose `openchamber` command is on PATH.
+Installation alone does not restart an existing server. Use the normal
+OpenChamber start/startup commands when switching the running server to it.
 
 ```sh
-node ~/.local/share/openchamber-fork/update.mjs --port 4097 run
+openchamber-fork-update check
+openchamber update
 ```
 
-For macOS login startup, stop/disable the previous server yourself, then:
+The packaged CLI's update command checks this fork, verifies its manifest and
+archive checksums, then installs the tgz with npm. Upstream's existing update
+command owns instance discovery, restarting services and checking the resulting
+version. The adapter refuses to install through a different npm global prefix.
+It downloads before stopping any CLI instance, and ignores an older latest
+pointer. `--quiet` and `--json` follow the CLI's existing output modes.
 
-```sh
-node ~/.local/share/openchamber-fork/update.mjs --port 4096 service
-```
+The browser's official update route stays manually managed; update the fork
+through the CLI. Settings, sessions and credentials use the normal OpenChamber
+locations. There is no separate fork LaunchAgent or version-directory manager.
 
-This registers a separate `cc.ykai.openchamber-fork.<root-hash>` LaunchAgent. It refuses an
-occupied port. The launcher resolves `current` on each start, so upgrades do not
-leave launchd pointing at a deleted version. It binds to loopback. PATH, HOME,
-LANG, OPENCODE_BINARY, OPENCHAMBER_DATA_DIR and OPENCHAMBER_UI_PASSWORD, when set
-for this command, are preserved in the private service configuration. Credential
-values are never printed; keep the LaunchAgent file private.
+To roll back, install a previous Release's Web tgz with npm and restart using
+the normal OpenChamber service management. Program rollback does not undo data
+migrations. The earlier two-archive experimental release used a different
+installer; bootstrap this npm package directly when moving from that release.
 
-Updates restart only this fork's registered service and verify its reported
-version. A failed health check restores the previous program and restarts it.
-Rollback switches program files only; it cannot undo an upstream data migration.
-Without the fork service, restart any manually launched process yourself after
-updating. Old version directories remain available for inspection.
+## Release contract and verification
 
-Forward other CLI commands with `node update.mjs cli <arguments>`.
-If a killed updater leaves `.update-lock` under the installation root, verify
-that no update is running before removing that lock and retrying.
+Versions such as `2.7.3-fork.20261116.22.1` contain the upstream package version,
+UTC date, workflow run number and attempt. Immutable releases publish the Web
+archive, `manifest.json` and the standalone update/check helper. The `fork-web`
+prerelease holds `latest.json`, updated after the package passes a clean npm
+installation check. Schema 2 identifies the single-archive format.
 
-## Verification
-
-`node --test scripts/fork-web/*.test.mjs` exercises versioning, archive integrity,
-clean local SDK installation, failed-update preservation and program rollback.
-The workflow also installs the real built packages in an empty temporary root,
-checks the CLI version and UI assets, and verifies manual-update ownership.
-Native macOS service startup must be checked when the user activates it; the
-Linux packaging job cannot verify launchd or a macOS native dependency build.
+`node --test scripts/fork-web/*.test.mjs` covers version ordering, pointer
+recovery, checksums, installing the single tgz with its private-version SDK,
+updating through npm, and explicitly reinstalling an older archive. The workflow
+also installs the real package into a temporary npm global prefix and verifies
+its CLI, SDK version and manual browser-update policy. It does not switch the
+user's running service.
