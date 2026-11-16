@@ -1,7 +1,8 @@
 # Personal Web releases
 
 The fork's `main` branch owns the publishing workflow and `config.json`. The
-generated `personal` branch contains upstream `main` plus configured open PRs.
+generated `personal` branch contains the latest stable upstream Release tag plus
+configured PR patches that are not yet included in that release.
 Other changes on fork `main` are not implicitly included in the program.
 
 ## Synchronization
@@ -9,8 +10,12 @@ Other changes on fork `main` are not implicitly included in the program.
 The workflow runs every six hours at minute 17 UTC, on publishing-tool/config
 changes to `main`, and through Run workflow. Unchanged inputs skip the build.
 Add upstream PR numbers to `patches`; conflicts or closed, unmerged PRs stop the
-run. Merged PRs are skipped after confirming their merge commits in upstream.
-#6902 is already merged, so it adds no duplicate patch.
+run. Merged PRs are skipped only when the selected stable tag contains their
+merge commits. A PR merged to `main` but not released remains a backport.
+For a merged PR, its recorded target base and merge result define the patch;
+an open PR uses its merge-base-to-head diff. Only the diff is applied, so later
+`main` history does not enter `personal`. A patch already present is skipped.
+#6902 is backported on `v2.7.2` and will retire once a stable release includes it.
 
 `personal` is generated. Develop on separate branches based on upstream `main`.
 A successful build replaces `personal` using force-with-lease, preserving edits
@@ -65,13 +70,16 @@ installer; bootstrap this npm package directly when moving from that release.
 
 ## Release contract and verification
 
-Versions such as `2.7.3-fork.20261116.22.1` contain the upstream package version,
-UTC date, workflow run number and attempt. Immutable releases publish the Web
+Versions such as `2.7.3-fork.20261116.22.1` use the next patch version after the
+latest stable release (`v2.7.2` in this example), followed by the UTC date,
+workflow run number and attempt. Draft and prerelease tags are never bases.
+Immutable releases publish the Web
 archive, `manifest.json` and the standalone update/check helper. The `fork-web`
 prerelease holds `latest.json`, updated after the package passes a clean npm
 installation check. Schema 2 identifies the single-archive format.
 
-`node --test scripts/fork-web/*.test.mjs` covers version ordering, pointer
+`node --test scripts/fork-web/*.test.mjs` covers stable-tag selection, diff-only
+backports and automatic patch retirement, version ordering, pointer
 recovery, checksums, installing the single tgz with its private-version SDK,
 updating through npm, and explicitly reinstalling an older archive. The workflow
 also installs the real package into a temporary npm global prefix and verifies

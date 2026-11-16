@@ -35,13 +35,6 @@ jobs:
         with:
           path: control
           persist-credentials: false
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: openchamber/openchamber
-          ref: main
-          fetch-depth: 0
-          path: source
-          persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '24'
@@ -54,11 +47,26 @@ jobs:
           HAS_PUBLISH_TOKEN: ${{ secrets.FORK_PUSH_TOKEN != '' }}
         run: test "$HAS_PUBLISH_TOKEN" = true || { echo 'Set FORK_PUSH_TOKEN with Contents and Workflows write access to this fork.'; exit 1; }
 
+      - name: Resolve the latest stable upstream release
+        id: stable
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node control/scripts/fork-web/prepare.mjs resolve
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: openchamber/openchamber
+          ref: ${{ steps.stable.outputs.tag }}
+          fetch-depth: 0
+          path: source
+          persist-credentials: false
+
       - name: Prepare upstream and pending patches
         id: prepare
         env:
           GH_TOKEN: ${{ github.token }}
           FORCE_BUILD: ${{ inputs.force || false }}
+          UPSTREAM_TAG: ${{ steps.stable.outputs.tag }}
         run: node control/scripts/fork-web/prepare.mjs
 
       - name: Read the upstream Bun pin
@@ -79,10 +87,11 @@ jobs:
         if: steps.prepare.outputs.build == 'true'
         run: node control/scripts/fork-web/package.mjs stamp
 
-      - name: Build web and SDK
+      - name: Check and build web and SDK
         if: steps.prepare.outputs.build == 'true'
         working-directory: source
         run: |
+          bun run type-check
           bun run --cwd packages/sdk build
           bun run build:web
 

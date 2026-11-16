@@ -16,8 +16,9 @@ const hash = data => createHash('sha256').update(data).digest('hex');
 
 test('fork versions are distinct and numerically ordered across runs and attempts', () => {
   const date = new Date('2026-11-16T03:00:00Z');
-  assert.equal(buildVersion('2.7.3', '22', '1', date), '2.7.3-fork.20261116.22.1');
-  assert.equal(buildVersion('2.7.3-canary.1', '22', '2', date), '2.7.3-fork.20261116.22.2');
+  assert.equal(buildVersion('2.7.2', '22', '1', date), '2.7.3-fork.20261116.22.1');
+  assert.equal(buildVersion('v2.7.9', '22', '2', date), '2.7.10-fork.20261116.22.2');
+  assert.throws(() => buildVersion('2.7.3-canary.1', '22', '2', date));
   assert.throws(() => buildVersion('bad', '22', '1', date));
   assert.equal(isNewerRelease('2.7.3-fork.20261116.10.1', '2.7.3-fork.20261116.9.1'), true);
   assert.equal(isNewerRelease('2.7.3-fork.20261116.9.1', '2.7.3-fork.20261116.10.1'), false);
