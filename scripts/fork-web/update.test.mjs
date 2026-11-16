@@ -47,17 +47,32 @@ test('one npm tarball supplies the private SDK version and supports verified upd
     const web = join(temp, `web-${run}`);
     const sdk = join(temp, `sdk-${run}`);
     mkdirSync(artifacts);
+    const shared = join(temp, `shared-${run}`);
+    mkdirSync(join(shared, 'package'), { recursive: true });
+    writeFileSync(join(shared, 'package', 'package.json'), JSON.stringify({ name: '@fork-fixture/shared', version: '1.0.0', type: 'module', main: 'index.js' }));
+    writeFileSync(join(shared, 'package', 'index.js'), 'export const ready = true;\n');
+    const sharedArchive = join(artifacts, 'shared.tgz');
+    execFileSync('tar', ['-czf', sharedArchive, '-C', shared, 'package']);
     mkdirSync(join(sdk, 'package'), { recursive: true });
-    writeFileSync(join(sdk, 'package', 'package.json'), JSON.stringify({ name: '@openchamber/sdk', version, type: 'module', main: 'index.js' }));
-    writeFileSync(join(sdk, 'package', 'index.js'), `export const version=${JSON.stringify(version)};\n`);
+    writeFileSync(join(sdk, 'package', 'package.json'), JSON.stringify({ name: '@openchamber/sdk', version, type: 'module', main: 'index.js', dependencies: { '@fork-fixture/shared': `file:${sharedArchive}` } }));
+    writeFileSync(join(sdk, 'package', 'index.js'), `import {ready} from '@fork-fixture/shared'; if(!ready)throw Error('missing shared dependency'); export const version=${JSON.stringify(version)};\n`);
     const sdkArchive = join(artifacts, 'sdk.tgz');
     execFileSync('tar', ['-czf', sdkArchive, '-C', sdk, 'package']);
     mkdirSync(join(web, 'bin', 'lib'), { recursive: true });
-    writeFileSync(join(web, 'package.json'), JSON.stringify({ name: '@openchamber/web', version, type: 'module', files: ['bin'], dependencies: { '@openchamber/sdk': version }, bin: { openchamber: './bin/cli.js' } }));
+    writeFileSync(join(web, 'package.json'), JSON.stringify({ name: '@openchamber/web', version, type: 'module', files: ['bin'], dependencies: { '@openchamber/sdk': version, '@fork-fixture/shared': `file:${sharedArchive}` }, bin: { openchamber: './bin/cli.js' } }));
     writeFileSync(join(web, 'bin', 'cli.js'), "#!/usr/bin/env node\nimport {version} from '@openchamber/sdk'; console.log(version);\n");
     writeFileSync(join(web, 'bin', 'lib', 'commands-update.js'), 'export function createUpdateCommand({importFromFilePath,packageManagerPath}) {}\n');
     finalizeWebPackage(web, sdkArchive, { version, repository, tag: `fork-web-${version}`, sourceSha: 'a'.repeat(40) });
+    // Local tarballs seed the fixture without a registry. The packed packages
+    // use normal version dependencies, like Web and SDK both depending on zod.
+    for (const manifestPath of [join(web, 'package.json'), join(web, 'node_modules', '@openchamber', 'sdk', 'package.json')]) {
+      const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+      manifest.dependencies['@fork-fixture/shared'] = '1.0.0';
+      writeFileSync(manifestPath, JSON.stringify(manifest));
+    }
     const packed = JSON.parse(execFileSync('npm', ['pack', '--ignore-scripts', '--json', '--pack-destination', artifacts], { cwd: web, encoding: 'utf8' }));
+    assert.ok(packed[0].files.some(file => file.path === 'node_modules/@fork-fixture/shared/index.js'));
+    rmSync(sharedArchive);
     const archive = join(artifacts, packed[0].filename);
     const bytes = readFileSync(archive);
     const manifest = { schema: 2, repository, version, tag: `fork-web-${version}`, assets: { 'openchamber-web.tgz': { size: bytes.length, sha256: hash(bytes) } } };

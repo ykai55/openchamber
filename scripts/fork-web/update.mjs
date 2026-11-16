@@ -82,7 +82,7 @@ export function createForkPackageManager(packageRoot) {
     executeUpdate: (_pm, { targetVersion, silent } = {}) => {
       if (!prepared || prepared.version !== targetVersion) return { success: false, error: 'No verified archive prepared for the requested version' };
       try {
-        execFileSync('npm', ['install', '--global', '--no-audit', '--no-fund', prepared.archive], { stdio: silent ? ['ignore', 'pipe', 'pipe'] : 'inherit' });
+        execFileSync('npm', ['install', '--global', '--allow-scripts=node-pty', '--no-audit', '--no-fund', prepared.archive], { stdio: silent ? ['ignore', 'pipe', 'pipe'] : 'inherit' });
         const installed = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8'));
         if (installed.version !== targetVersion || installed.openchamberFork?.repository !== repository) throw new Error('npm did not install the requested fork version');
         return { success: true, exitCode: 0 };

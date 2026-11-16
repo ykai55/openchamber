@@ -32,11 +32,12 @@ Requires Node.js 24.14+, npm, and a compatible installed OpenCode CLI. Copy the
 Web archive URL from the selected Release:
 
 ```sh
-npm install -g https://github.com/ykai55/openchamber/releases/download/<tag>/openchamber-web.tgz
+npm install -g --allow-scripts=node-pty https://github.com/ykai55/openchamber/releases/download/<tag>/openchamber-web.tgz
 openchamber --version
 ```
 
-Confirm that the CLI reports the fork version. If multiple Node/package-manager
+The script allowance lets npm prepare the native terminal module. Confirm that
+the CLI reports the fork version. If multiple Node/package-manager
 installations exist, use the npm prefix whose `openchamber` command is on PATH.
 Installation alone does not restart an existing server. Use the normal
 OpenChamber start/startup commands when switching the running server to it.

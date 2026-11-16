@@ -1,20 +1,27 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { readFileSync, writeFileSync, copyFileSync, renameSync, readdirSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, copyFileSync, renameSync, readdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
 export function finalizeWebPackage(directory, sdkArchive, plan) {
-  const sdk = join(directory, 'node_modules', '@openchamber', 'sdk');
-  mkdirSync(sdk, { recursive: true });
-  execFileSync('tar', ['-xzf', sdkArchive, '--strip-components=1', '-C', sdk]);
   const pkg = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8'));
-  const sdkPackage = JSON.parse(readFileSync(join(sdk, 'package.json'), 'utf8'));
-  if (pkg.version !== plan.version || sdkPackage.version !== plan.version) throw new Error('Web and bundled SDK versions must match the release');
+  if (pkg.version !== plan.version) throw new Error('Web version must match the release');
   pkg.bundledDependencies = [...new Set([...(pkg.bundledDependencies ?? pkg.bundleDependencies ?? []), '@openchamber/sdk'])];
   delete pkg.bundleDependencies;
+  // npm bundles SDK transitives too. Resolve the real tree so shared packages
+  // such as zod are present, instead of producing a half-populated bundle.
+  pkg.dependencies['@openchamber/sdk'] = `file:${sdkArchive}`;
+  writeFileSync(join(directory, 'package.json'), JSON.stringify(pkg, null, 2) + '\n');
+  execFileSync('npm', ['install', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund', '--registry=https://registry.npmjs.org'], { cwd: directory, stdio: ['ignore', 'pipe', 'pipe'] });
+  const sdkPackage = JSON.parse(readFileSync(join(directory, 'node_modules', '@openchamber', 'sdk', 'package.json'), 'utf8'));
+  if (sdkPackage.version !== plan.version) throw new Error('Bundled SDK version must match the release');
+  // Shared direct dependencies must also be marked at the Web root; otherwise
+  // npm can replace the SDK's bundled copy while resolving the Web dependency.
+  pkg.bundledDependencies = [...new Set([...pkg.bundledDependencies, ...Object.keys(sdkPackage.dependencies ?? {}).filter(name => name in pkg.dependencies)])];
+  pkg.dependencies['@openchamber/sdk'] = plan.version;
   pkg.bin = { ...pkg.bin, 'openchamber-fork-update': './bin/fork-update.mjs' };
   pkg.openchamberFork = { repository: plan.repository, tag: plan.tag, sourceSha: plan.sourceSha };
   writeFileSync(join(directory, 'package.json'), JSON.stringify(pkg, null, 2) + '\n');
@@ -87,7 +94,7 @@ function packageRelease() {
   writeFileSync(join(artifacts, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
   const manifestHash = createHash('sha256').update(readFileSync(join(artifacts, 'manifest.json'))).digest('hex');
   writeFileSync(join(artifacts, 'latest.json'), JSON.stringify({ schema: 2, repository: plan.repository, tag: plan.tag, version: plan.version, inputHash: plan.inputHash, manifestSha256: manifestHash }, null, 2) + '\n');
-  writeFileSync(join(artifacts, 'release-notes.md'), `Web release ${plan.version}\n\nUpstream: ${plan.upstream}@${plan.upstreamSha}\nSource: ${plan.sourceSha}\nPublishing tools: ${plan.controlSha}\n\nPatches:\n${plan.patches.map(patch => `- #${patch.pr}: ${patch.state} (${patch.sha})`).join('\n')}\n\nInstall with:\n\n\`npm install -g https://github.com/${plan.repository}/releases/download/${plan.tag}/openchamber-web.tgz\`\n\nThe matching SDK is bundled. Use \`openchamber update\` to update from this fork, or install an older Release URL to roll back.\n`);
+  writeFileSync(join(artifacts, 'release-notes.md'), `Web release ${plan.version}\n\nUpstream: ${plan.upstream}@${plan.upstreamSha}\nSource: ${plan.sourceSha}\nPublishing tools: ${plan.controlSha}\n\nPatches:\n${plan.patches.map(patch => `- #${patch.pr}: ${patch.state} (${patch.sha})`).join('\n')}\n\nInstall with:\n\n\`npm install -g --allow-scripts=node-pty https://github.com/${plan.repository}/releases/download/${plan.tag}/openchamber-web.tgz\`\n\nThe matching SDK is bundled. Use \`openchamber update\` to update from this fork, or install an older Release URL to roll back.\n`);
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) packageRelease();
