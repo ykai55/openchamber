@@ -1,0 +1,6 @@
+{
+  "repository": "ykai55/openchamber",
+  "upstream": "openchamber/openchamber",
+  "branch": "personal",
+  "patches": [6902]
+}

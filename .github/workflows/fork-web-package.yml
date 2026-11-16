@@ -1,7 +1,19 @@
 name: Fork web package
 
 on:
+  schedule:
+    - cron: '17 */6 * * *'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fork-web-package.yml'
+      - 'scripts/fork-web/**'
   workflow_dispatch:
+    inputs:
+      force:
+        description: Build even if the upstream, patches and tools are unchanged
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -12,67 +24,82 @@ concurrency:
 
 jobs:
   package:
+    if: github.repository == 'ykai55/openchamber'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
+    env:
+      SOURCE_DIR: ${{ github.workspace }}/source
+      ARTIFACT_DIR: ${{ github.workspace }}/artifacts
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          bun-version: '1.4.3'
+          path: control
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: openchamber/openchamber
+          ref: main
+          fetch-depth: 0
+          path: source
+          persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '24'
 
-      - name: Install dependencies
+      - name: Check release tooling
+        run: node --test control/scripts/fork-web/*.test.mjs
+
+      - name: Prepare upstream and pending patches
+        id: prepare
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FORCE_BUILD: ${{ inputs.force || false }}
+        run: node control/scripts/fork-web/prepare.mjs
+
+      - name: Read the upstream Bun pin
+        if: steps.prepare.outputs.build == 'true'
+        id: bun
+        run: echo "version=$(node -p "require('./source/package.json').packageManager.split('@')[1]")" >> "$GITHUB_OUTPUT"
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        if: steps.prepare.outputs.build == 'true'
+        with:
+          bun-version: ${{ steps.bun.outputs.version }}
+
+      - name: Install upstream dependencies
+        if: steps.prepare.outputs.build == 'true'
+        working-directory: source
         run: bun install --frozen-lockfile
 
-      - name: Build web assets
+      - name: Stamp fork version and manual-update policy
+        if: steps.prepare.outputs.build == 'true'
+        run: node control/scripts/fork-web/package.mjs stamp
+
+      - name: Build web and SDK
+        if: steps.prepare.outputs.build == 'true'
+        working-directory: source
         run: |
           bun run --cwd packages/sdk build
           bun run build:web
 
-      - name: Pack npm archive
+      - name: Pack and verify the installable release
+        if: steps.prepare.outputs.build == 'true'
         run: |
-          mkdir -p artifacts
-          bun pm pack --cwd packages/web --destination "$GITHUB_WORKSPACE/artifacts"
-          mv artifacts/*.tgz artifacts/openchamber-web.tgz
+          node control/scripts/fork-web/package.mjs
+          node control/scripts/fork-web/update.mjs install --artifacts "$ARTIFACT_DIR" --root "$RUNNER_TEMP/fork-smoke" --json
+          node control/scripts/fork-web/update.mjs --root "$RUNNER_TEMP/fork-smoke" cli --version
+          node --input-type=module -e "const m=await import(process.env.RUNNER_TEMP+'/fork-smoke/current/app/server/lib/package-manager.js'); if(!m.isUnmanagedInstall())process.exit(1)"
 
-      - name: Verify clean npm installation
-        run: |
-          npm install --prefix "$RUNNER_TEMP/package-smoke" "$GITHUB_WORKSPACE"/artifacts/*.tgz
-          "$RUNNER_TEMP/package-smoke/node_modules/.bin/openchamber" --version
-          test -f "$RUNNER_TEMP/package-smoke/node_modules/@openchamber/web/dist/index.html"
-
-      - name: Publish latest fork package
+      - name: Publish the tested branch and release
+        if: steps.prepare.outputs.build == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          SOURCE_SHA: ${{ github.sha }}
-        run: |
-          tag="latest"
-          archive="openchamber-web.tgz"
-          sha256sum artifacts/*.tgz > artifacts/SHA256SUMS
-          cat > "$RUNNER_TEMP/release-notes.md" <<EOF
-          Web CLI package built from commit ${SOURCE_SHA}.
+        run: node control/scripts/fork-web/publish.mjs
 
-          Requires Node.js 24.14+ and OpenCode CLI. Install with:
-
-          \`\`\`sh
-          npm install -g https://github.com/${GH_REPO}/releases/download/${tag}/${archive}
-          \`\`\`
-
-          Built web assets and clean npm installation were checked on Linux x64.
-          This is a fork build, not an upstream release. Updating from npm latest replaces it with upstream.
-          EOF
-          exists=$(gh release list --limit 100 --json tagName --jq 'any(.[]; .tagName == "latest")')
-          git tag --force "$tag" "$SOURCE_SHA"
-          git push --force origin "refs/tags/$tag"
-          if [ "$exists" = true ]; then
-            gh release upload "$tag" artifacts/*.tgz artifacts/SHA256SUMS --clobber
-            gh release edit "$tag" --title "Latest fork build" --latest \
-              --notes-file "$RUNNER_TEMP/release-notes.md"
-          else
-            gh release create "$tag" artifacts/*.tgz artifacts/SHA256SUMS \
-              --verify-tag --latest --title "Latest fork build" \
-              --notes-file "$RUNNER_TEMP/release-notes.md"
-          fi
+      - name: Keep build diagnostics
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fork-web-plan-${{ github.run_number }}
+          path: artifacts/plan.json
+          if-no-files-found: ignore
