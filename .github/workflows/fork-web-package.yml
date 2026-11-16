@@ -49,6 +49,11 @@ jobs:
       - name: Check release tooling
         run: node --test control/scripts/fork-web/*.test.mjs
 
+      - name: Check publishing permission is configured
+        env:
+          HAS_PUBLISH_TOKEN: ${{ secrets.FORK_PUSH_TOKEN != '' }}
+        run: test "$HAS_PUBLISH_TOKEN" = true || { echo 'Set FORK_PUSH_TOKEN with Contents and Workflows write access to this fork.'; exit 1; }
+
       - name: Prepare upstream and pending patches
         id: prepare
         env:
@@ -93,6 +98,7 @@ jobs:
         if: steps.prepare.outputs.build == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          FORK_PUSH_TOKEN: ${{ secrets.FORK_PUSH_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: node control/scripts/fork-web/publish.mjs
 

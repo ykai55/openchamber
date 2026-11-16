@@ -7,6 +7,14 @@ directly on fork `main` are not implicitly included in the program.
 
 ## Synchronization
 
+Set the repository Actions secret `FORK_PUSH_TOKEN` to a fine-grained GitHub
+token restricted to this fork, with Contents and Workflows read/write permissions.
+The built-in Actions token cannot advance a branch when upstream workflow files
+changed. Only the publishing step receives this token, and passes it to the Git
+push alone. Release API calls use the built-in Actions token. Dependency
+installation and package build steps receive neither publishing credential.
+Renew the personal token before its chosen expiration date.
+
 - Runs every six hours at minute 17 UTC, when publishing tools/config change on
   `main`, and through the workflow's Run workflow action.
 - An unchanged upstream commit, patch list and controller revision skip the build.
