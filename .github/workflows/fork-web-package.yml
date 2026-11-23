@@ -83,7 +83,7 @@ jobs:
         working-directory: source
         run: bun install --frozen-lockfile
 
-      - name: Stamp fork version and manual-update policy
+      - name: Stamp fork version
         if: steps.prepare.outputs.build == 'true'
         run: node control/scripts/fork-web/package.mjs stamp
 
@@ -101,7 +101,7 @@ jobs:
           node control/scripts/fork-web/package.mjs
           npm install --global --prefix "$RUNNER_TEMP/fork-smoke" --allow-scripts=node-pty --no-audit --no-fund "$ARTIFACT_DIR/openchamber-web.tgz"
           "$RUNNER_TEMP/fork-smoke/bin/openchamber" --version
-          node --input-type=module -e "const m=await import(process.env.RUNNER_TEMP+'/fork-smoke/lib/node_modules/@openchamber/web/server/lib/package-manager.js'); if(!m.isUnmanagedInstall())process.exit(1)"
+          node --input-type=module -e "import {createRequire} from 'node:module'; import {pathToFileURL} from 'node:url'; const r=createRequire(process.env.RUNNER_TEMP+'/fork-smoke/lib/node_modules/@openchamber/web/package.json'); const m=await import(pathToFileURL(r.resolve('@openchamber/web/server/lib/package-manager.js'))); if(!m.isUnmanagedInstall())process.exit(1)"
           node -e "const p=require(process.env.RUNNER_TEMP+'/fork-smoke/lib/node_modules/@openchamber/web/package.json'); const s=require(process.env.RUNNER_TEMP+'/fork-smoke/lib/node_modules/@openchamber/web/node_modules/@openchamber/sdk/package.json'); if(p.version!==s.version||!p.openchamberFork)process.exit(1)"
           node -e "require(process.env.RUNNER_TEMP+'/fork-smoke/lib/node_modules/@openchamber/web/node_modules/node-pty')"
           npm_config_prefix="$RUNNER_TEMP/fork-smoke" node --import ./control/scripts/fork-web/smoke-update.mjs "$RUNNER_TEMP/fork-smoke/bin/openchamber" update --json > "$RUNNER_TEMP/fork-update.json"

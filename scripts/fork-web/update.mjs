@@ -109,7 +109,7 @@ export async function main(args = process.argv.slice(2)) {
   if (command === 'update') {
     if (!pkg?.openchamberFork) throw new Error('Install a fork release with npm first');
     const flags = values.json ? ['--json'] : values.quiet ? ['--quiet'] : [];
-    const result = spawnSync(process.execPath, [join(packageRoot, 'bin', 'cli.js'), 'update', ...flags], { stdio: 'inherit' });
+    const result = spawnSync(process.execPath, [resolve(packageRoot, pkg.bin.openchamber), 'update', ...flags], { stdio: 'inherit' });
     if (result.error) throw result.error;
     process.exitCode = result.status ?? 1;
     return;

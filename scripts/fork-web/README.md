@@ -63,6 +63,12 @@ The browser's official update route stays manually managed; update the fork
 through the CLI. Settings, sessions and credentials use the normal OpenChamber
 locations. There is no separate fork LaunchAgent or version-directory manager.
 
+Packaging follows the CLI entry declared in the Web package manifest. The fork
+adapters are applied to the emitted JavaScript after upstream build/prepack, so
+TypeScript sources are compiled normally and prepack cannot overwrite the
+adapters. Both the legacy `bin/` layout and the compiled `build/bin/` layout use
+the same update contract.
+
 To roll back, install a previous Release's Web tgz with npm and restart using
 the normal OpenChamber service management. Program rollback does not undo data
 migrations. The earlier two-archive experimental release used a different

@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import test from 'node:test';
 import { verifyManifest, verifyAsset, isNewerRelease, createForkPackageManager } from './update.mjs';
 import { buildVersion } from './prepare.mjs';
@@ -42,7 +42,7 @@ test('one npm tarball supplies the private SDK version and supports verified upd
   const originalPrefix = process.env.npm_config_prefix;
   const originalFetch = globalThis.fetch;
   process.env.npm_config_prefix = prefix;
-  const createArchive = run => {
+  const createArchive = (run, runtime = '') => {
     const version = `2.7.3-fork.20261116.${run}.1`;
     const artifacts = join(temp, `artifacts-${run}`);
     const web = join(temp, `web-${run}`);
@@ -59,10 +59,12 @@ test('one npm tarball supplies the private SDK version and supports verified upd
     writeFileSync(join(sdk, 'package', 'index.js'), `import {ready} from '@fork-fixture/shared'; if(!ready)throw Error('missing shared dependency'); export const version=${JSON.stringify(version)};\n`);
     const sdkArchive = join(artifacts, 'sdk.tgz');
     execFileSync('tar', ['-czf', sdkArchive, '-C', sdk, 'package']);
-    mkdirSync(join(web, 'bin', 'lib'), { recursive: true });
-    writeFileSync(join(web, 'package.json'), JSON.stringify({ name: '@openchamber/web', version, type: 'module', files: ['bin'], dependencies: { '@openchamber/sdk': version, '@fork-fixture/shared': `file:${sharedArchive}` }, bin: { openchamber: './bin/cli.js' } }));
-    writeFileSync(join(web, 'bin', 'cli.js'), "#!/usr/bin/env node\nimport {version} from '@openchamber/sdk'; console.log(version);\n");
-    writeFileSync(join(web, 'bin', 'lib', 'commands-update.js'), 'export function createUpdateCommand({importFromFilePath,packageManagerPath}) {}\n');
+    mkdirSync(join(web, runtime, 'bin', 'lib'), { recursive: true });
+    mkdirSync(join(web, runtime, 'server', 'lib'), { recursive: true });
+    writeFileSync(join(web, 'package.json'), JSON.stringify({ name: '@openchamber/web', version, type: 'module', files: ['bin', 'server', 'build'], dependencies: { '@openchamber/sdk': version, '@fork-fixture/shared': `file:${sharedArchive}` }, bin: { openchamber: join(runtime, 'bin', 'cli.js') } }));
+    writeFileSync(join(web, runtime, 'bin', 'cli.js'), "#!/usr/bin/env node\nimport {version} from '@openchamber/sdk'; console.log(version);\n");
+    writeFileSync(join(web, runtime, 'server', 'lib', 'package-manager.js'), 'export function isUnmanagedInstall() {\n  return false;\n}\n');
+    writeFileSync(join(web, runtime, 'bin', 'lib', 'commands-update.js'), 'export function createUpdateCommand({importFromFilePath,packageManagerPath}) { return async () => (await importFromFilePath(packageManagerPath)).getCurrentVersion(); }\n');
     finalizeWebPackage(web, sdkArchive, { version, repository, tag: `fork-web-${version}`, sourceSha: 'a'.repeat(40) });
     // Local tarballs seed the fixture without a registry. The packed packages
     // use normal version dependencies, like Web and SDK both depending on zod.
@@ -91,11 +93,14 @@ test('one npm tarball supplies the private SDK version and supports verified upd
   const install = archive => execFileSync('npm', ['install', '--global', '--no-audit', '--no-fund', archive], { stdio: 'pipe' });
   try {
     const first = createArchive(1);
-    const second = createArchive(2);
+    const second = createArchive(2, 'build');
     install(first.archive);
     const packageRoot = join(execFileSync('npm', ['root', '--global'], { encoding: 'utf8' }).trim(), '@openchamber', 'web');
-    const version = () => execFileSync(process.execPath, [join(packageRoot, 'bin', 'cli.js'), '--version'], { encoding: 'utf8' }).trim();
+    const installedPackage = () => JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8'));
+    const version = () => execFileSync(process.execPath, [join(packageRoot, installedPackage().bin.openchamber), '--version'], { encoding: 'utf8' }).trim();
     assert.equal(version(), first.version);
+    const legacyAdapter = await import(pathToFileURL(join(packageRoot, 'bin', 'lib', 'commands-update.js')));
+    assert.equal(await legacyAdapter.createUpdateCommand({ packageManagerPath: 'injected' })({}), first.version);
     const manager = createForkPackageManager(packageRoot);
     try {
       serveRelease(second, true);
@@ -106,6 +111,11 @@ test('one npm tarball supplies the private SDK version and supports verified upd
       assert.equal(available.available, true);
       assert.equal(manager.executeUpdate('npm', { targetVersion: available.version, silent: true }).success, true);
       assert.equal(version(), second.version);
+      const compiledAdapter = await import(pathToFileURL(join(packageRoot, 'build', 'bin', 'lib', 'commands-update.js')));
+      assert.equal(await compiledAdapter.createUpdateCommand({ packageManagerPath: 'injected' })({}), second.version);
+      const policy = await import(pathToFileURL(join(packageRoot, 'build', 'server', 'lib', 'package-manager.js')));
+      assert.equal(policy.isUnmanagedInstall(), true);
+      assert.equal(execFileSync(process.execPath, [join(packageRoot, installedPackage().bin['openchamber-fork-update']), 'update'], { encoding: 'utf8' }).trim(), second.version);
       serveRelease(first);
       const current = createForkPackageManager(packageRoot);
       assert.equal((await current.checkForUpdates()).available, false);

@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync, copyFileSync, renameSync, readdirSync, mkdtempSync, rmSync } from 'node:fs';
-import { resolve, dirname, join } from 'node:path';
+import { resolve, dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -9,6 +9,8 @@ const here = dirname(fileURLToPath(import.meta.url));
 export function finalizeWebPackage(directory, sdkArchive, plan) {
   const pkg = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8'));
   if (pkg.version !== plan.version) throw new Error('Web version must match the release');
+  const binDirectory = dirname(pkg.bin.openchamber);
+  const runtimeDirectory = dirname(binDirectory);
   pkg.bundledDependencies = [...new Set([...(pkg.bundledDependencies ?? pkg.bundleDependencies ?? []), '@openchamber/sdk'])];
   delete pkg.bundleDependencies;
   // npm bundles SDK transitives too. Resolve the real tree so shared packages
@@ -22,22 +24,31 @@ export function finalizeWebPackage(directory, sdkArchive, plan) {
   // npm can replace the SDK's bundled copy while resolving the Web dependency.
   pkg.bundledDependencies = [...new Set([...pkg.bundledDependencies, ...Object.keys(sdkPackage.dependencies ?? {}).filter(name => name in pkg.dependencies)])];
   pkg.dependencies['@openchamber/sdk'] = plan.version;
-  pkg.bin = { ...pkg.bin, 'openchamber-fork-update': './bin/fork-update.mjs' };
+  pkg.bin = { ...pkg.bin, 'openchamber-fork-update': join(binDirectory, 'fork-update.mjs').split(sep).join('/') };
   pkg.openchamberFork = { repository: plan.repository, tag: plan.tag, sourceSha: plan.sourceSha };
   writeFileSync(join(directory, 'package.json'), JSON.stringify(pkg, null, 2) + '\n');
-  copyFileSync(join(here, 'update.mjs'), join(directory, 'bin', 'fork-update.mjs'));
+  copyFileSync(join(here, 'update.mjs'), join(directory, binDirectory, 'fork-update.mjs'));
 
-  const commands = join(directory, 'bin', 'lib', 'commands-update.js');
+  // Overlay emitted JavaScript after prepack has finished. Source extensions
+  // and the compiler's output directory are not part of the fork contract.
+  const managerPath = join(directory, runtimeDirectory, 'server', 'lib', 'package-manager.js');
+  const manager = readFileSync(managerPath, 'utf8');
+  const unmanaged = /export function isUnmanagedInstall\(\) \{\n[^}]+\n\}/g;
+  if ([...manager.matchAll(unmanaged)].length !== 1) throw new Error('The upstream update-management hook changed; review the fork packaging overlay');
+  writeFileSync(managerPath, manager.replace(unmanaged, 'export function isUnmanagedInstall() {\n  return true;\n}'));
+
+  const commands = join(directory, binDirectory, 'lib', 'commands-update.js');
   const original = readFileSync(commands, 'utf8');
   if (!original.includes('createUpdateCommand') || !original.includes('importFromFilePath') || !original.includes('packageManagerPath')) throw new Error('Upstream CLI update wiring changed; review the fork adapter');
-  renameSync(commands, join(directory, 'bin', 'lib', 'commands-update-upstream.js'));
+  renameSync(commands, join(dirname(commands), 'commands-update-upstream.js'));
+  const packageRootUrl = relative(dirname(commands), directory).split(sep).join('/') + '/';
   writeFileSync(commands, `import { fileURLToPath } from 'node:url';
 import { createUpdateCommand as upstreamUpdateCommand } from './commands-update-upstream.js';
 import { createForkPackageManager } from '../fork-update.mjs';
 
 export function createUpdateCommand(dependencies) {
   return async (options) => {
-    const manager = createForkPackageManager(fileURLToPath(new URL('../../', import.meta.url)));
+    const manager = createForkPackageManager(fileURLToPath(new URL(${JSON.stringify(packageRootUrl)}, import.meta.url)));
     try {
       return await upstreamUpdateCommand({ ...dependencies, importFromFilePath: async () => manager })(options);
     } finally {
@@ -59,13 +70,6 @@ function packageRelease() {
     if (folder === 'packages/web') pkg.dependencies['@openchamber/sdk'] = plan.version;
     writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
   }
-  // The browser's official update route remains manual; the packaged CLI below
-  // uses the fork release adapter and upstream restart management.
-  const managerPath = resolve(source, 'packages/web/server/lib/package-manager.js');
-  const manager = readFileSync(managerPath, 'utf8');
-  const unmanaged = /export function isUnmanagedInstall\(\) \{\n[^}]+\n\}/g;
-  if ([...manager.matchAll(unmanaged)].length !== 1) throw new Error('The upstream update-management hook changed; review the fork packaging overlay');
-  writeFileSync(managerPath, manager.replace(unmanaged, 'export function isUnmanagedInstall() {\n  return true;\n}'));
   if (process.argv[2] === 'stamp') return;
 
   const staging = mkdtempSync(join(artifacts, '.package-'));
