@@ -2,7 +2,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Icon } from '@/components/icon/Icon';
-import { SettingsChipGroup, SettingsFieldRow, SettingsSection } from '@/components/sections/shared/SettingsSection';
+import { SETTINGS_ICON_BUTTON_CLASS, SettingsChipGroup, SettingsFieldRow, SettingsSection } from '@/components/sections/shared/SettingsSection';
 import { useUIStore } from '@/stores/useUIStore';
 import { updateDesktopSettings } from '@/lib/persistence';
 import {
@@ -316,37 +316,43 @@ export const KeyboardShortcutsSettings: React.FC = () => {
                   </kbd>
                   <Button
                     type="button"
-                    variant="secondary"
-                    size="xs"
-                    className="!font-normal"
+                    variant="ghost"
+                    size="sm"
+                    className={SETTINGS_ICON_BUTTON_CLASS}
+                    aria-label={t('settings.openchamber.keyboardShortcuts.actions.edit')}
+                    title={t('settings.openchamber.keyboardShortcuts.actions.edit')}
                     onClick={() => {
                       refreshGlobalMiniChatCombo();
                       refreshGlobalQuakeCombo();
                       setEditingAction(action);
                     }}
                   >
-                    {t('settings.openchamber.keyboardShortcuts.actions.edit')}
+                    <Icon name="edit" className="size-3.5" aria-hidden />
                   </Button>
                   {action.id in shortcutOverrides ? (
                     <Button
                       type="button"
                       variant="ghost"
-                      size="xs"
-                      className="!font-normal"
+                      size="sm"
+                      className={SETTINGS_ICON_BUTTON_CLASS}
+                      aria-label={t('settings.common.actions.reset')}
+                      title={t('settings.common.actions.reset')}
                       onClick={() => resetOne(action.id)}
                     >
-                      {t('settings.common.actions.reset')}
+                      <Icon name="restart" className="size-3.5" aria-hidden />
                     </Button>
                   ) : (
                     <Button
                       type="button"
                       variant="ghost"
-                      size="xs"
-                      className="!font-normal"
+                      size="sm"
+                      className={SETTINGS_ICON_BUTTON_CLASS}
+                      aria-label={t('settings.openchamber.keyboardShortcuts.actions.clear')}
+                      title={t('settings.openchamber.keyboardShortcuts.actions.clear')}
                       disabled={!isAssigned(action)}
                       onClick={() => save(action.id, UNASSIGNED_SHORTCUT)}
                     >
-                      {t('settings.openchamber.keyboardShortcuts.actions.clear')}
+                      <Icon name="close" className="size-3.5" aria-hidden />
                     </Button>
                   )}
                 </SettingsFieldRow>
