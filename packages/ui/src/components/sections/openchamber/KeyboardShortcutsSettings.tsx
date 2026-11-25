@@ -2,7 +2,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Icon } from '@/components/icon/Icon';
-import { SETTINGS_ICON_BUTTON_CLASS, SettingsChipGroup, SettingsFieldRow, SettingsSection } from '@/components/sections/shared/SettingsSection';
+import { SettingsChipGroup, SettingsFieldRow, SettingsSection } from '@/components/sections/shared/SettingsSection';
 import { useUIStore } from '@/stores/useUIStore';
 import { updateDesktopSettings } from '@/lib/persistence';
 import {
@@ -28,6 +28,7 @@ import { ShortcutRecordingDialog, updateShortcutRecordingState } from './Shortcu
 
 
 const CATEGORIES = ['session', 'models', 'panels', 'navigation', 'application'] as const;
+const ROW_ACTION_CLASS = 'size-6 any-pointer-coarse:size-9 text-muted-foreground hover:text-foreground';
 
 const persistShortcutOverrides = (nextOverrides: Record<string, ShortcutCombo>) => {
   void updateDesktopSettings({ shortcutOverrides: nextOverrides });
@@ -314,47 +315,49 @@ export const KeyboardShortcutsSettings: React.FC = () => {
                   >
                     {shortcutDisplay(action)}
                   </kbd>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className={SETTINGS_ICON_BUTTON_CLASS}
-                    aria-label={t('settings.openchamber.keyboardShortcuts.actions.edit')}
-                    title={t('settings.openchamber.keyboardShortcuts.actions.edit')}
-                    onClick={() => {
-                      refreshGlobalMiniChatCombo();
-                      refreshGlobalQuakeCombo();
-                      setEditingAction(action);
-                    }}
-                  >
-                    <Icon name="edit" className="size-3.5" aria-hidden />
-                  </Button>
-                  {action.id in shortcutOverrides ? (
+                  <div className="inline-flex shrink-0">
                     <Button
                       type="button"
                       variant="ghost"
-                      size="sm"
-                      className={SETTINGS_ICON_BUTTON_CLASS}
-                      aria-label={t('settings.common.actions.reset')}
-                      title={t('settings.common.actions.reset')}
-                      onClick={() => resetOne(action.id)}
+                      size="icon"
+                      className={ROW_ACTION_CLASS}
+                      aria-label={t('settings.openchamber.keyboardShortcuts.actions.edit')}
+                      title={t('settings.openchamber.keyboardShortcuts.actions.edit')}
+                      onClick={() => {
+                        refreshGlobalMiniChatCombo();
+                        refreshGlobalQuakeCombo();
+                        setEditingAction(action);
+                      }}
                     >
-                      <Icon name="restart" className="size-3.5" aria-hidden />
+                      <Icon name="edit" className="size-3.5" aria-hidden />
                     </Button>
-                  ) : (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className={SETTINGS_ICON_BUTTON_CLASS}
-                      aria-label={t('settings.openchamber.keyboardShortcuts.actions.clear')}
-                      title={t('settings.openchamber.keyboardShortcuts.actions.clear')}
-                      disabled={!isAssigned(action)}
-                      onClick={() => save(action.id, UNASSIGNED_SHORTCUT)}
-                    >
-                      <Icon name="close" className="size-3.5" aria-hidden />
-                    </Button>
-                  )}
+                    {action.id in shortcutOverrides ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className={ROW_ACTION_CLASS}
+                        aria-label={t('settings.common.actions.reset')}
+                        title={t('settings.common.actions.reset')}
+                        onClick={() => resetOne(action.id)}
+                      >
+                        <Icon name="restart" className="size-3.5" aria-hidden />
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className={ROW_ACTION_CLASS}
+                        aria-label={t('settings.openchamber.keyboardShortcuts.actions.clear')}
+                        title={t('settings.openchamber.keyboardShortcuts.actions.clear')}
+                        disabled={!isAssigned(action)}
+                        onClick={() => save(action.id, UNASSIGNED_SHORTCUT)}
+                      >
+                        <Icon name="close" className="size-3.5" aria-hidden />
+                      </Button>
+                    )}
+                  </div>
                 </SettingsFieldRow>
               ))}
             </div>
