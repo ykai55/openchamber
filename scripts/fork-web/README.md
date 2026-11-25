@@ -7,6 +7,11 @@ Other changes on fork `main` are not implicitly included in the program.
 
 ## Synchronization
 
+After upstream PR backports, the build applies `scripts/fork-web/patches/*.patch`
+in filename order. These are fork-only changes, including the compact keyboard
+shortcut actions. A patch already in the stable source is skipped; a conflict
+stops the build before publication. The release manifest lists them in `forkPatches`.
+
 The workflow runs every six hours at minute 17 UTC, on publishing-tool/config
 changes to `main`, and through Run workflow. Unchanged inputs skip the build.
 Add upstream PR numbers to `patches`; conflicts or closed, unmerged PRs stop the

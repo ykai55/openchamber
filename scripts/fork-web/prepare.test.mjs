@@ -32,7 +32,7 @@ test('rebuilds a release when the rolling pointer upload was interrupted', () =>
     writeFileSync(join(bin, 'git'), `#!/usr/bin/env node\nif(process.argv[2]==='rev-parse')console.log('${'a'.repeat(40)}');\n`, { mode: 0o755 });
     const result = spawnSync(process.execPath, [fileURLToPath(new URL('./prepare.mjs', import.meta.url))], {
       encoding: 'utf8',
-      env: { ...process.env, PATH: bin + delimiter + process.env.PATH, SOURCE_DIR: source, ARTIFACT_DIR: artifacts, GITHUB_OUTPUT: output, GITHUB_REPOSITORY: 'ykai55/openchamber', GITHUB_SHA: 'b'.repeat(40), GITHUB_RUN_NUMBER: '5', GITHUB_RUN_ATTEMPT: '1', UPSTREAM_TAG: 'v2.7.2' },
+      env: { ...process.env, FORK_WEB_PATCH_DIR: bin, PATH: bin + delimiter + process.env.PATH, SOURCE_DIR: source, ARTIFACT_DIR: artifacts, GITHUB_OUTPUT: output, GITHUB_REPOSITORY: 'ykai55/openchamber', GITHUB_SHA: 'b'.repeat(40), GITHUB_RUN_NUMBER: '5', GITHUB_RUN_ATTEMPT: '1', UPSTREAM_TAG: 'v2.7.2' },
     });
     assert.equal(result.status, 0, result.stderr);
     assert.match(readFileSync(output, 'utf8'), /build=true/);
@@ -78,7 +78,7 @@ test('backports a merged PR without later main changes, then retires it when sta
       writeFileSync(output, '');
       const result = spawnSync(process.execPath, [fileURLToPath(new URL('./prepare.mjs', import.meta.url))], {
         encoding: 'utf8',
-        env: { ...process.env, PATH: bin + delimiter + process.env.PATH, SOURCE_DIR: source, ARTIFACT_DIR: artifacts, GITHUB_OUTPUT: output, GITHUB_REPOSITORY: 'ykai55/openchamber', GITHUB_SHA: 'b'.repeat(40), GITHUB_RUN_NUMBER: '5', GITHUB_RUN_ATTEMPT: '1', UPSTREAM_TAG: tag },
+        env: { ...process.env, FORK_WEB_PATCH_DIR: bin, PATH: bin + delimiter + process.env.PATH, SOURCE_DIR: source, ARTIFACT_DIR: artifacts, GITHUB_OUTPUT: output, GITHUB_REPOSITORY: 'ykai55/openchamber', GITHUB_SHA: 'b'.repeat(40), GITHUB_RUN_NUMBER: '5', GITHUB_RUN_ATTEMPT: '1', UPSTREAM_TAG: tag },
       });
       assert.equal(result.status, 0, result.stderr);
       return JSON.parse(readFileSync(join(artifacts, 'plan.json'), 'utf8'));

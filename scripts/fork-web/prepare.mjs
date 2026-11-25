@@ -1,6 +1,6 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { readFileSync, writeFileSync, appendFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, readdirSync, writeFileSync, appendFileSync, mkdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -19,15 +19,19 @@ export function stableReleaseTag(release) {
   return release.tag_name;
 }
 
-export function applyPullRequestPatch(source, patch) {
-  const diff = execFileSync('git', ['diff', '--no-color', '--no-ext-diff', '--no-textconv', '--binary', '--full-index', patch.base, patch.sha], { cwd: source, maxBuffer: 32 * 1024 * 1024 });
+function applyDiff(source, diff, message) {
   if (diff.length === 0) return false;
   const reverse = spawnSync('git', ['apply', '--reverse', '--check'], { cwd: source, input: diff, stdio: ['pipe', 'pipe', 'pipe'] });
   if (reverse.status === 0) return false;
   execFileSync('git', ['apply', '--3way', '--index'], { cwd: source, input: diff, stdio: ['pipe', 'pipe', 'pipe'] });
   if (spawnSync('git', ['diff', '--cached', '--quiet'], { cwd: source }).status === 0) return false;
-  run('git', ['-c', 'user.name=ykai', '-c', 'user.email=me@ykai.cc', 'commit', '-m', `Apply upstream PR #${patch.pr} to the stable release`], source);
+  run('git', ['-c', 'user.name=ykai', '-c', 'user.email=me@ykai.cc', 'commit', '-m', message], source);
   return true;
+}
+
+export function applyPullRequestPatch(source, patch) {
+  const diff = execFileSync('git', ['diff', '--no-color', '--no-ext-diff', '--no-textconv', '--binary', '--full-index', patch.base, patch.sha], { cwd: source, maxBuffer: 32 * 1024 * 1024 });
+  return applyDiff(source, diff, `Apply upstream PR #${patch.pr} to the stable release`);
 }
 
 async function prepare() {
@@ -97,11 +101,16 @@ async function prepare() {
     // Apply only each PR's diff. Conflicts leave published refs untouched.
     if (!applyPullRequestPatch(source, patch)) patch.state = 'already-present';
   }
+  const patchDir = process.env.FORK_WEB_PATCH_DIR ?? resolve(here, 'patches');
+  const forkPatches = readdirSync(patchDir).filter(name => name.endsWith('.patch')).sort().map(name => {
+    const applied = applyDiff(source, readFileSync(resolve(patchDir, name)), `Apply fork patch: ${name}`);
+    return { name, state: applied ? 'apply' : 'already-present' };
+  });
   const sourceSha = git('rev-parse', 'HEAD');
   const version = buildVersion(upstreamVersion, process.env.GITHUB_RUN_NUMBER, process.env.GITHUB_RUN_ATTEMPT);
   const remote = `https://github.com/${config.repository}.git`;
   const previousBranchSha = git('ls-remote', remote, `refs/heads/${config.branch}`).split(/\s/)[0];
-  const plan = { ...config, patches, upstreamTag, upstreamSha, sourceSha, controlSha, upstreamVersion, version, inputHash, previousBranchSha, tag: `fork-web-${version}` };
+  const plan = { ...config, patches, forkPatches, upstreamTag, upstreamSha, sourceSha, controlSha, upstreamVersion, version, inputHash, previousBranchSha, tag: `fork-web-${version}` };
   writeFileSync(resolve(artifacts, 'plan.json'), JSON.stringify(plan, null, 2) + '\n');
   appendFileSync(process.env.GITHUB_OUTPUT, `build=true\nversion=${version}\ntag=${plan.tag}\nsha=${sourceSha}\n`);
   console.log(JSON.stringify({ version, upstreamSha, sourceSha, patches }));
