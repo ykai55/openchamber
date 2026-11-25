@@ -1,92 +1,92 @@
-[1mdiff --git a/packages/ui/src/components/sections/openchamber/KeyboardShortcutsSettings.tsx b/packages/ui/src/components/sections/openchamber/KeyboardShortcutsSettings.tsx[m
-[1mindex f08e1ba3080e2c1970a174a017130a96df25c464..35a2784bfc5957e8d3b6ea09a80a3c756a7b85b0 100644[m
-[1m--- a/packages/ui/src/components/sections/openchamber/KeyboardShortcutsSettings.tsx[m
-[1m+++ b/packages/ui/src/components/sections/openchamber/KeyboardShortcutsSettings.tsx[m
-[36m@@ -28,6 +28,7 @@[m [mimport { ShortcutRecordingDialog, updateShortcutRecordingState } from './Shortcu[m
- [m
- [m
- const CATEGORIES = ['session', 'models', 'panels', 'navigation', 'application'] as const;[m
-[32m+[m[32mconst ROW_ACTION_CLASS = 'size-6 any-pointer-coarse:size-9 text-muted-foreground hover:text-foreground';[m
- [m
- const persistShortcutOverrides = (nextOverrides: Record<string, ShortcutCombo>) => {[m
-   void updateDesktopSettings({ shortcutOverrides: nextOverrides });[m
-[36m@@ -314,41 +315,49 @@[m [mexport const KeyboardShortcutsSettings: React.FC = () => {[m
-                   >[m
-                     {shortcutDisplay(action)}[m
-                   </kbd>[m
-[31m-                  <Button[m
-[31m-                    type="button"[m
-[31m-                    variant="secondary"[m
-[31m-                    size="xs"[m
-[31m-                    className="!font-normal"[m
-[31m-                    onClick={() => {[m
-[31m-                      refreshGlobalMiniChatCombo();[m
-[31m-                      refreshGlobalQuakeCombo();[m
-[31m-                      setEditingAction(action);[m
-[31m-                    }}[m
-[31m-                  >[m
-[31m-                    {t('settings.openchamber.keyboardShortcuts.actions.edit')}[m
-[31m-                  </Button>[m
-[31m-                  {action.id in shortcutOverrides ? ([m
-[31m-                    <Button[m
-[31m-                      type="button"[m
-[31m-                      variant="ghost"[m
-[31m-                      size="xs"[m
-[31m-                      className="!font-normal"[m
-[31m-                      onClick={() => resetOne(action.id)}[m
-[31m-                    >[m
-[31m-                      {t('settings.common.actions.reset')}[m
-[31m-                    </Button>[m
-[31m-                  ) : ([m
-[32m+[m[32m                  <div className="inline-flex shrink-0">[m
-                     <Button[m
-                       type="button"[m
-                       variant="ghost"[m
-[31m-                      size="xs"[m
-[31m-                      className="!font-normal"[m
-[31m-                      disabled={!isAssigned(action)}[m
-[31m-                      onClick={() => save(action.id, UNASSIGNED_SHORTCUT)}[m
-[32m+[m[32m                      size="icon"[m
-[32m+[m[32m                      className={ROW_ACTION_CLASS}[m
-[32m+[m[32m                      aria-label={t('settings.openchamber.keyboardShortcuts.actions.edit')}[m
-[32m+[m[32m                      title={t('settings.openchamber.keyboardShortcuts.actions.edit')}[m
-[32m+[m[32m                      onClick={() => {[m
-[32m+[m[32m                        refreshGlobalMiniChatCombo();[m
-[32m+[m[32m                        refreshGlobalQuakeCombo();[m
-[32m+[m[32m                        setEditingAction(action);[m
-[32m+[m[32m                      }}[m
-                     >[m
-[31m-                      {t('settings.openchamber.keyboardShortcuts.actions.clear')}[m
-[32m+[m[32m                      <Icon name="edit" className="size-3.5" aria-hidden />[m
-                     </Button>[m
-[31m-                  )}[m
-[32m+[m[32m                    {action.id in shortcutOverrides ? ([m
-[32m+[m[32m                      <Button[m
-[32m+[m[32m                        type="button"[m
-[32m+[m[32m                        variant="ghost"[m
-[32m+[m[32m                        size="icon"[m
-[32m+[m[32m                        className={ROW_ACTION_CLASS}[m
-[32m+[m[32m                        aria-label={t('settings.common.actions.reset')}[m
-[32m+[m[32m                        title={t('settings.common.actions.reset')}[m
-[32m+[m[32m                        onClick={() => resetOne(action.id)}[m
-[32m+[m[32m                      >[m
-[32m+[m[32m                        <Icon name="restart" className="size-3.5" aria-hidden />[m
-[32m+[m[32m                      </Button>[m
-[32m+[m[32m                    ) : ([m
-[32m+[m[32m                      <Button[m
-[32m+[m[32m                        type="button"[m
-[32m+[m[32m                        variant="ghost"[m
-[32m+[m[32m                        size="icon"[m
-[32m+[m[32m                        className={ROW_ACTION_CLASS}[m
-[32m+[m[32m                        aria-label={t('settings.openchamber.keyboardShortcuts.actions.clear')}[m
-[32m+[m[32m                        title={t('settings.openchamber.keyboardShortcuts.actions.clear')}[m
-[32m+[m[32m                        disabled={!isAssigned(action)}[m
-[32m+[m[32m                        onClick={() => save(action.id, UNASSIGNED_SHORTCUT)}[m
-[32m+[m[32m                      >[m
-[32m+[m[32m                        <Icon name="close" className="size-3.5" aria-hidden />[m
-[32m+[m[32m                      </Button>[m
-[32m+[m[32m                    )}[m
-[32m+[m[32m                  </div>[m
-                 </SettingsFieldRow>[m
-               ))}[m
-             </div>[m
+diff --git a/packages/ui/src/components/sections/openchamber/KeyboardShortcutsSettings.tsx b/packages/ui/src/components/sections/openchamber/KeyboardShortcutsSettings.tsx
+index f08e1ba3080e2c1970a174a017130a96df25c464..35a2784bfc5957e8d3b6ea09a80a3c756a7b85b0 100644
+--- a/packages/ui/src/components/sections/openchamber/KeyboardShortcutsSettings.tsx
++++ b/packages/ui/src/components/sections/openchamber/KeyboardShortcutsSettings.tsx
+@@ -28,6 +28,7 @@ import { ShortcutRecordingDialog, updateShortcutRecordingState } from './Shortcu
+ 
+ 
+ const CATEGORIES = ['session', 'models', 'panels', 'navigation', 'application'] as const;
++const ROW_ACTION_CLASS = 'size-6 any-pointer-coarse:size-9 text-muted-foreground hover:text-foreground';
+ 
+ const persistShortcutOverrides = (nextOverrides: Record<string, ShortcutCombo>) => {
+   void updateDesktopSettings({ shortcutOverrides: nextOverrides });
+@@ -314,41 +315,49 @@ export const KeyboardShortcutsSettings: React.FC = () => {
+                   >
+                     {shortcutDisplay(action)}
+                   </kbd>
+-                  <Button
+-                    type="button"
+-                    variant="secondary"
+-                    size="xs"
+-                    className="!font-normal"
+-                    onClick={() => {
+-                      refreshGlobalMiniChatCombo();
+-                      refreshGlobalQuakeCombo();
+-                      setEditingAction(action);
+-                    }}
+-                  >
+-                    {t('settings.openchamber.keyboardShortcuts.actions.edit')}
+-                  </Button>
+-                  {action.id in shortcutOverrides ? (
+-                    <Button
+-                      type="button"
+-                      variant="ghost"
+-                      size="xs"
+-                      className="!font-normal"
+-                      onClick={() => resetOne(action.id)}
+-                    >
+-                      {t('settings.common.actions.reset')}
+-                    </Button>
+-                  ) : (
++                  <div className="inline-flex shrink-0">
+                     <Button
+                       type="button"
+                       variant="ghost"
+-                      size="xs"
+-                      className="!font-normal"
+-                      disabled={!isAssigned(action)}
+-                      onClick={() => save(action.id, UNASSIGNED_SHORTCUT)}
++                      size="icon"
++                      className={ROW_ACTION_CLASS}
++                      aria-label={t('settings.openchamber.keyboardShortcuts.actions.edit')}
++                      title={t('settings.openchamber.keyboardShortcuts.actions.edit')}
++                      onClick={() => {
++                        refreshGlobalMiniChatCombo();
++                        refreshGlobalQuakeCombo();
++                        setEditingAction(action);
++                      }}
+                     >
+-                      {t('settings.openchamber.keyboardShortcuts.actions.clear')}
++                      <Icon name="edit" className="size-3.5" aria-hidden />
+                     </Button>
+-                  )}
++                    {action.id in shortcutOverrides ? (
++                      <Button
++                        type="button"
++                        variant="ghost"
++                        size="icon"
++                        className={ROW_ACTION_CLASS}
++                        aria-label={t('settings.common.actions.reset')}
++                        title={t('settings.common.actions.reset')}
++                        onClick={() => resetOne(action.id)}
++                      >
++                        <Icon name="restart" className="size-3.5" aria-hidden />
++                      </Button>
++                    ) : (
++                      <Button
++                        type="button"
++                        variant="ghost"
++                        size="icon"
++                        className={ROW_ACTION_CLASS}
++                        aria-label={t('settings.openchamber.keyboardShortcuts.actions.clear')}
++                        title={t('settings.openchamber.keyboardShortcuts.actions.clear')}
++                        disabled={!isAssigned(action)}
++                        onClick={() => save(action.id, UNASSIGNED_SHORTCUT)}
++                      >
++                        <Icon name="close" className="size-3.5" aria-hidden />
++                      </Button>
++                    )}
++                  </div>
+                 </SettingsFieldRow>
+               ))}
+             </div>
