@@ -28,6 +28,7 @@ import { ShortcutRecordingDialog, updateShortcutRecordingState } from './Shortcu
 
 
 const CATEGORIES = ['session', 'models', 'panels', 'navigation', 'application'] as const;
+const ROW_ACTION_CLASS = 'size-6 any-pointer-coarse:size-9 text-muted-foreground hover:text-foreground';
 
 const persistShortcutOverrides = (nextOverrides: Record<string, ShortcutCombo>) => {
   void updateDesktopSettings({ shortcutOverrides: nextOverrides });
@@ -314,41 +315,49 @@ export const KeyboardShortcutsSettings: React.FC = () => {
                   >
                     {shortcutDisplay(action)}
                   </kbd>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="xs"
-                    className="!font-normal"
-                    onClick={() => {
-                      refreshGlobalMiniChatCombo();
-                      refreshGlobalQuakeCombo();
-                      setEditingAction(action);
-                    }}
-                  >
-                    {t('settings.openchamber.keyboardShortcuts.actions.edit')}
-                  </Button>
-                  {action.id in shortcutOverrides ? (
+                  <div className="inline-flex shrink-0">
                     <Button
                       type="button"
                       variant="ghost"
-                      size="xs"
-                      className="!font-normal"
-                      onClick={() => resetOne(action.id)}
+                      size="icon"
+                      className={ROW_ACTION_CLASS}
+                      aria-label={t('settings.openchamber.keyboardShortcuts.actions.edit')}
+                      title={t('settings.openchamber.keyboardShortcuts.actions.edit')}
+                      onClick={() => {
+                        refreshGlobalMiniChatCombo();
+                        refreshGlobalQuakeCombo();
+                        setEditingAction(action);
+                      }}
                     >
-                      {t('settings.common.actions.reset')}
+                      <Icon name="edit" className="size-3.5" aria-hidden />
                     </Button>
-                  ) : (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="xs"
-                      className="!font-normal"
-                      disabled={!isAssigned(action)}
-                      onClick={() => save(action.id, UNASSIGNED_SHORTCUT)}
-                    >
-                      {t('settings.openchamber.keyboardShortcuts.actions.clear')}
-                    </Button>
-                  )}
+                    {action.id in shortcutOverrides ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className={ROW_ACTION_CLASS}
+                        aria-label={t('settings.common.actions.reset')}
+                        title={t('settings.common.actions.reset')}
+                        onClick={() => resetOne(action.id)}
+                      >
+                        <Icon name="restart" className="size-3.5" aria-hidden />
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className={ROW_ACTION_CLASS}
+                        aria-label={t('settings.openchamber.keyboardShortcuts.actions.clear')}
+                        title={t('settings.openchamber.keyboardShortcuts.actions.clear')}
+                        disabled={!isAssigned(action)}
+                        onClick={() => save(action.id, UNASSIGNED_SHORTCUT)}
+                      >
+                        <Icon name="close" className="size-3.5" aria-hidden />
+                      </Button>
+                    )}
+                  </div>
                 </SettingsFieldRow>
               ))}
             </div>
